@@ -104,11 +104,52 @@ class Boid {
     alignment.mult(window.settings.alignmentWeight);
     cohesion.mult(window.settings.cohesionWeight);
 
+    // Stage 3: Attract/push force from spawn position
+    let attractPushForce = createVector(0, 0);
+    if (window.stage3AttractActive && window.stage3SpawnX !== undefined && window.stage3SpawnY !== undefined) {
+      // Attract towards spawn position - use direct force calculation to bypass maxForce limit
+      const target = createVector(window.stage3SpawnX, window.stage3SpawnY);
+      let desired = p5.Vector.sub(target, this.position);
+      const distance = desired.mag();
+      
+      if (distance > 0) {
+        // Normalize and scale to desired speed
+        desired.normalize();
+        desired.mult(this.maxSpeed * 1.5); // Move faster than normal when attracted
+        
+        // Calculate steering force (desired - velocity)
+        let steer = p5.Vector.sub(desired, this.velocity);
+        // Don't limit to maxForce - use stronger force multiplier
+        steer.mult(2.0); // Strong attraction force
+        attractPushForce = steer;
+      }
+      
+      // Debug: log first boid's force occasionally
+      if (this === boids[0] && frameCount % 60 === 0) {
+        console.log('Attract force:', attractPushForce.mag(), 'target:', window.stage3SpawnX, window.stage3SpawnY, 'boid pos:', this.position.x, this.position.y);
+      }
+    } else if (window.stage3PushActive && window.stage3SpawnX !== undefined && window.stage3SpawnY !== undefined) {
+      // Push away from spawn position (one-time force)
+      const target = createVector(window.stage3SpawnX, window.stage3SpawnY);
+      const pushDirection = p5.Vector.sub(this.position, target);
+      const distance = pushDirection.mag();
+      if (distance > 0) {
+        pushDirection.normalize();
+        // Much stronger push for closer boids
+        const pushStrength = 5.0 * (1.0 / max(distance / 100, 0.1)); // Increased from 3.0
+        pushDirection.mult(pushStrength);
+        attractPushForce = pushDirection;
+      }
+      // Reset push flag after one frame
+      window.stage3PushActive = false;
+    }
+
     // Add the force vectors to acceleration
     this.applyForce(separation);
     this.applyForce(alignment);
     this.applyForce(cohesion);
     this.applyForce(crankForce);
+    this.applyForce(attractPushForce);
   }
 
   // Method to update location

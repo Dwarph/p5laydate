@@ -7,6 +7,12 @@ let spawnX = 0.5;
 let spawnY = 0.5;
 const SPAWN_MOVE_SPEED = 0.01; // Movement speed for D-pad
 
+// B button state for attracting/pushing boids
+let bButtonHeld = false;
+let bButtonWasHeld = false;
+const ATTRACT_FORCE_STRENGTH = 0.15; // Force strength when attracting
+const PUSH_FORCE_STRENGTH = 2.0; // Force strength when pushing away
+
 function handleStage3Controls(state) {
   // D-pad controls for spawn position
   const upPressed = (state.buttonDown && state.buttonDown.up) || 
@@ -32,21 +38,52 @@ function handleStage3Controls(state) {
     spawnX = min(1, spawnX + SPAWN_MOVE_SPEED);
   }
   
-  // Check for button presses to spawn boids (excluding D-pad)
-  const buttons = ['a', 'b', 'menu'];
-  for (let button of buttons) {
-    const isPressed = (state.buttonDown && state.buttonDown[button]) || 
-                      (state.pressed && state.pressed[button]) || false;
-    const wasPressed = stage3ButtonStates[button] || false;
-    
-    // Detect new button press
-    if (isPressed && !wasPressed && window.flock) {
-      console.log('Button pressed in stage 3:', button);
-      window.createBoidAtPosition(spawnX, spawnY);
-    }
-    
-    // Update previous state
-    stage3ButtonStates[button] = isPressed;
+  // Check for A button press to spawn boids (A is mapped to B button on Playdate)
+  const aPressed = (state.buttonDown && state.buttonDown.b) || 
+                   (state.pressed && state.pressed.b) || false;
+  const aWasPressed = stage3ButtonStates['a'] || false;
+  
+  // Detect new A button press
+  if (aPressed && !aWasPressed && window.flock) {
+    console.log('A button pressed in stage 3 - spawning boid');
+    window.createBoidAtPosition(spawnX, spawnY);
+  }
+  
+  // Update previous state
+  stage3ButtonStates['a'] = aPressed;
+  
+  // Check for B button (mapped to 'a' button on Playdate) for attract/push
+  const bPressed = (state.buttonDown && state.buttonDown.a) || 
+                   (state.pressed && state.pressed.a) || false;
+  bButtonWasHeld = bButtonHeld;
+  bButtonHeld = bPressed;
+  
+  // Debug: log B button state
+  if (bButtonHeld && !bButtonWasHeld) {
+    console.log('B button pressed - attracting boids');
+  }
+  if (!bButtonHeld && bButtonWasHeld) {
+    console.log('B button released - pushing boids away');
+  }
+  
+  // Apply forces to boids based on B button state
+  // Store state for application in boid update loop (safer than applying here)
+  // Always set the variables - use window.width/height or fallback to canvas dimensions
+  const canvasWidth = typeof width !== 'undefined' ? width : (window.width || 1920);
+  const canvasHeight = typeof height !== 'undefined' ? height : (window.height || 1080);
+  
+  window.stage3AttractActive = bButtonHeld;
+  if (bButtonWasHeld && !bButtonHeld) {
+    // Just released - trigger one-time push
+    window.stage3PushActive = true;
+    console.log('Push force activated, spawn at:', canvasWidth * spawnX, canvasHeight * spawnY);
+  }
+  window.stage3SpawnX = canvasWidth * spawnX;
+  window.stage3SpawnY = canvasHeight * spawnY;
+  
+  // Debug: log state periodically
+  if (bButtonHeld && frameCount % 30 === 0) {
+    console.log('B held - attract active:', window.stage3AttractActive, 'spawn:', window.stage3SpawnX, window.stage3SpawnY);
   }
   
   // Update crank angle directly from state (same as stage 2)
@@ -106,7 +143,7 @@ function drawStage3Instructions() {
   if (window.currentStage === 3) {
     stageContent.innerHTML = `
       <div>Stage 3: Boids Active</div>
-      <div class="instruction">D-pad: Move spawn | Buttons: Spawn boid</div>
+      <div class="instruction">D-pad: Move spawn | A: Spawn | B: Attract/Push</div>
     `;
     stageOverlay.style.display = 'block';
     progressOverlay.style.display = 'none';
@@ -118,7 +155,10 @@ function drawSpawnIndicator() {
   
   const spawnScreenX = width * spawnX;
   const spawnScreenY = height * spawnY;
-  const indicatorRadius = 8;
+  // Shrink cursor when B is held
+  const baseRadius = 8;
+  const isBHeld = window.stage3 ? window.stage3.bButtonHeld : false;
+  const indicatorRadius = isBHeld ? baseRadius * 0.5 : baseRadius;
   
   push();
   noStroke();
@@ -202,6 +242,11 @@ function initializeStage3() {
   spawnY = 0.5;
   // Reset button states
   stage3ButtonStates = {};
+  bButtonHeld = false;
+  bButtonWasHeld = false;
+  // Reset force states
+  window.stage3AttractActive = false;
+  window.stage3PushActive = false;
 }
 
 // Expose functions to global scope
@@ -210,5 +255,7 @@ window.stage3 = {
   drawInstructions: drawStage3Instructions,
   drawCrankDebug: drawCrankDebug,
   drawSpawnIndicator: drawSpawnIndicator,
-  initialize: initializeStage3
+  initialize: initializeStage3,
+  // Expose B button state for cursor shrinking
+  get bButtonHeld() { return bButtonHeld; }
 };
