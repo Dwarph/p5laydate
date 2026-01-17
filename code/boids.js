@@ -107,26 +107,66 @@ class Boid {
     // Stage 3: Attract/push force from spawn position
     let attractPushForce = createVector(0, 0);
     if (window.stage3AttractActive && window.stage3SpawnX !== undefined && window.stage3SpawnY !== undefined) {
-      // Attract towards spawn position - use direct force calculation to bypass maxForce limit
       const target = createVector(window.stage3SpawnX, window.stage3SpawnY);
-      let desired = p5.Vector.sub(target, this.position);
-      const distance = desired.mag();
+      const toTarget = p5.Vector.sub(target, this.position);
+      const distance = toTarget.mag();
       
       if (distance > 0) {
-        // Normalize and scale to desired speed
-        desired.normalize();
-        desired.mult(this.maxSpeed * 1.5); // Move faster than normal when attracted
+        const ORBIT_RADIUS = 20; // Desired orbit radius
+        const ORBIT_SPEED = this.maxSpeed * 0.7; // Orbital speed
         
-        // Calculate steering force (desired - velocity)
-        let steer = p5.Vector.sub(desired, this.velocity);
-        // Don't limit to maxForce - use stronger force multiplier
-        steer.mult(2.0); // Strong attraction force
-        attractPushForce = steer;
-      }
-      
-      // Debug: log first boid's force occasionally
-      if (this === boids[0] && frameCount % 60 === 0) {
-        console.log('Attract force:', attractPushForce.mag(), 'target:', window.stage3SpawnX, window.stage3SpawnY, 'boid pos:', this.position.x, this.position.y);
+        // Calculate radial vector (from boid to target)
+        const radial = toTarget.copy();
+        radial.normalize();
+        
+        // Determine orbit direction based on current velocity (use whichever creates smoother motion)
+        // Calculate cross product of radial and velocity to determine if we should orbit clockwise or counter-clockwise
+        const velocityCopy = this.velocity.copy();
+        if (velocityCopy.mag() > 0.1) {
+          velocityCopy.normalize();
+        } else {
+          // If velocity is too small, default to clockwise
+          velocityCopy.set(-radial.y, radial.x);
+        }
+        
+        // Calculate both possible tangent directions
+        const tangent1 = createVector(-radial.y, radial.x); // Clockwise
+        const tangent2 = createVector(radial.y, -radial.x); // Counter-clockwise
+        
+        // Choose the tangent direction that's closer to current velocity direction
+        const dot1 = p5.Vector.dot(tangent1, velocityCopy);
+        const dot2 = p5.Vector.dot(tangent2, velocityCopy);
+        const tangent = dot1 > dot2 ? tangent1 : tangent2;
+        
+        // Calculate how far from ideal orbit radius
+        const radiusError = distance - ORBIT_RADIUS;
+        
+        // Blend between attracting to orbit and orbiting based on distance
+        if (distance > ORBIT_RADIUS * 2) {
+          // Far away - primarily attract towards orbit radius
+          const desired = radial.copy().mult(this.maxSpeed * 0.8);
+          let steer = p5.Vector.sub(desired, this.velocity);
+          steer.limit(this.maxForce * 1.5);
+          attractPushForce = steer;
+        } else {
+          // Within reasonable range - blend radial correction with tangential orbit
+          // Radial component: gently correct towards orbit radius
+          const radialStrength = constrain(radiusError / ORBIT_RADIUS, -0.5, 0.5);
+          const radialForce = radial.copy().mult(-radialStrength * 0.3);
+          
+          // Tangential component: maintain orbital motion
+          const tangentialForce = tangent.copy().mult(ORBIT_SPEED);
+          
+          // Combine forces
+          const desired = p5.Vector.add(radialForce, tangentialForce);
+          desired.normalize();
+          desired.mult(ORBIT_SPEED);
+          
+          // Smooth steering towards desired velocity
+          let steer = p5.Vector.sub(desired, this.velocity);
+          steer.limit(this.maxForce * 1.2);
+          attractPushForce = steer;
+        }
       }
     } else if (window.stage3PushActive && window.stage3SpawnX !== undefined && window.stage3SpawnY !== undefined) {
       // Push away from spawn position (one-time force)
