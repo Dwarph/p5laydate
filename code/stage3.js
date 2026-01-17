@@ -2,9 +2,38 @@
 
 let stage3ButtonStates = {}; // Track button states for stage 3
 
+// Spawn position (normalized 0-1)
+let spawnX = 0.5;
+let spawnY = 0.5;
+const SPAWN_MOVE_SPEED = 0.01; // Movement speed for D-pad
+
 function handleStage3Controls(state) {
-  // Check for button presses to spawn boids
-  const buttons = ['a', 'b', 'up', 'down', 'left', 'right', 'menu'];
+  // D-pad controls for spawn position
+  const upPressed = (state.buttonDown && state.buttonDown.up) || 
+                    (state.pressed && state.pressed.up) || false;
+  const downPressed = (state.buttonDown && state.buttonDown.down) || 
+                      (state.pressed && state.pressed.down) || false;
+  const leftPressed = (state.buttonDown && state.buttonDown.left) || 
+                      (state.pressed && state.pressed.left) || false;
+  const rightPressed = (state.buttonDown && state.buttonDown.right) || 
+                       (state.pressed && state.pressed.right) || false;
+  
+  // Update spawn position
+  if (upPressed) {
+    spawnY = max(0, spawnY - SPAWN_MOVE_SPEED);
+  }
+  if (downPressed) {
+    spawnY = min(1, spawnY + SPAWN_MOVE_SPEED);
+  }
+  if (leftPressed) {
+    spawnX = max(0, spawnX - SPAWN_MOVE_SPEED);
+  }
+  if (rightPressed) {
+    spawnX = min(1, spawnX + SPAWN_MOVE_SPEED);
+  }
+  
+  // Check for button presses to spawn boids (excluding D-pad)
+  const buttons = ['a', 'b', 'menu'];
   for (let button of buttons) {
     const isPressed = (state.buttonDown && state.buttonDown[button]) || 
                       (state.pressed && state.pressed[button]) || false;
@@ -13,7 +42,7 @@ function handleStage3Controls(state) {
     // Detect new button press
     if (isPressed && !wasPressed && window.flock) {
       console.log('Button pressed in stage 3:', button);
-      window.createBoidAtCenter();
+      window.createBoidAtPosition(spawnX, spawnY);
     }
     
     // Update previous state
@@ -77,11 +106,25 @@ function drawStage3Instructions() {
   if (window.currentStage === 3) {
     stageContent.innerHTML = `
       <div>Stage 3: Boids Active</div>
-      <div class="instruction">Press buttons to spawn boids</div>
+      <div class="instruction">D-pad: Move spawn | Buttons: Spawn boid</div>
     `;
     stageOverlay.style.display = 'block';
     progressOverlay.style.display = 'none';
   }
+}
+
+function drawSpawnIndicator() {
+  if (window.currentStage !== 3) return;
+  
+  const spawnScreenX = width * spawnX;
+  const spawnScreenY = height * spawnY;
+  const indicatorRadius = 8;
+  
+  push();
+  noStroke();
+  fill(0, 0, 0, 100); // Transparent black
+  circle(spawnScreenX, spawnScreenY, indicatorRadius * 2);
+  pop();
 }
 
 function drawCrankDebug() {
@@ -153,9 +196,19 @@ function drawCrankDebug() {
   pop();
 }
 
+function initializeStage3() {
+  // Reset spawn position to center
+  spawnX = 0.5;
+  spawnY = 0.5;
+  // Reset button states
+  stage3ButtonStates = {};
+}
+
 // Expose functions to global scope
 window.stage3 = {
   handleControls: handleStage3Controls,
   drawInstructions: drawStage3Instructions,
-  drawCrankDebug: drawCrankDebug
+  drawCrankDebug: drawCrankDebug,
+  drawSpawnIndicator: drawSpawnIndicator,
+  initialize: initializeStage3
 };

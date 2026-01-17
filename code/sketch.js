@@ -24,6 +24,10 @@ function setStage(stage) {
     }
   } else if (stage === 3) {
     console.log('Stage 3 initialized, flock:', !!flock);
+    // Initialize stage 3
+    if (window.stage3 && window.stage3.initialize) {
+      window.stage3.initialize();
+    }
   }
   
   // Update UI visibility
@@ -347,7 +351,16 @@ function createBoidAtCenter() {
   }
 }
 
+function createBoidAtPosition(normalizedX, normalizedY) {
+  if (flock) {
+    const x = width * normalizedX;
+    const y = height * normalizedY;
+    flock.addBoid(new Boid(x, y));
+  }
+}
+
 window.createBoidAtCenter = createBoidAtCenter;
+window.createBoidAtPosition = createBoidAtPosition;
 
 function draw() {
   // In stage 3, draw saved background (fast - just image copy, computation already done)
@@ -433,6 +446,10 @@ function draw() {
   if (currentStage === 3) {
     if (flock) {
       flock.run();
+      // Draw spawn indicator
+      if (window.stage3 && window.stage3.drawSpawnIndicator) {
+        window.stage3.drawSpawnIndicator();
+      }
       // Draw crank debug info
       if (window.stage3 && window.stage3.drawCrankDebug) {
         window.stage3.drawCrankDebug();
