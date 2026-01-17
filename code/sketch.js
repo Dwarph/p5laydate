@@ -115,8 +115,9 @@ window.initializeFlock = initializeFlock;
 function createGradientBuffer() {
   // Create off-screen graphics buffer for gradient at lower resolution for performance
   // We'll scale it up when drawing
-  const bufferWidth = 480; // 1/4 resolution
-  const bufferHeight = 270;
+  // Increased resolution slightly for better quality while maintaining performance
+  const bufferWidth = 640; // ~1/3 resolution (was 480)
+  const bufferHeight = 360; // ~1/3 resolution (was 270)
   
   // Remove old buffer if it exists
   if (gradientBuffer) {
@@ -147,18 +148,31 @@ function createGradientBuffer() {
   const maxRadius = baseRadius * window.settings.gradientSize;
   
   // Draw gradient with noise at lower resolution
+  // Optimized: pre-calculate values outside loops where possible
   gradientBuffer.loadPixels();
   
+  const pixels = gradientBuffer.pixels;
+  const noiseScale = 0.1;
+  const noiseStrength = 0.3;
+  
+  // Pre-calculate squared maxRadius to avoid sqrt in dist() call
+  const maxRadiusSq = maxRadius * maxRadius;
+  
   for (let y = 0; y < bufferHeight; y++) {
+    const yOffset = y * bufferWidth;
+    const dy = y - centerY;
+    const dySq = dy * dy;
+    
     for (let x = 0; x < bufferWidth; x++) {
-      // Calculate distance from center
-      const d = dist(x, y, centerX, centerY);
+      // Calculate distance squared (faster than dist())
+      const dx = x - centerX;
+      const dSq = dx * dx + dySq;
+      const d = sqrt(dSq);
       const normalizedDist = d / maxRadius;
       
       // Add noise for variation (static, no frameCount)
-      const noiseScale = 0.1;
       const noiseVal = noise(x * noiseScale, y * noiseScale);
-      const noiseOffset = (noiseVal - 0.5) * 0.3; // Strong noise variation
+      const noiseOffset = (noiseVal - 0.5) * noiseStrength;
       
       // Apply noise to the distance
       const noisyDist = constrain(normalizedDist + noiseOffset, 0, 1);
@@ -168,12 +182,12 @@ function createGradientBuffer() {
       const g = lerp(centerG, outerG, noisyDist);
       const b = lerp(centerB, outerB, noisyDist);
       
-      // Set pixel
-      const index = (x + y * bufferWidth) * 4;
-      gradientBuffer.pixels[index] = r;
-      gradientBuffer.pixels[index + 1] = g;
-      gradientBuffer.pixels[index + 2] = b;
-      gradientBuffer.pixels[index + 3] = 255;
+      // Set pixel (direct array access is faster)
+      const index = (x + yOffset) * 4;
+      pixels[index] = r;
+      pixels[index + 1] = g;
+      pixels[index + 2] = b;
+      pixels[index + 3] = 255;
     }
   }
   

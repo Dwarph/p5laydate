@@ -32,6 +32,19 @@ function setupGUI() {
   brushFolder.add(window.settings, 'brushOpacity', 0, 255).step(1).name('Brush Opacity');
   brushFolder.add(window.settings, 'strokeLength', 2, 20).step(0.5).name('Stroke Length');
   brushFolder.open();
+  
+  // Boid variation folder
+  const variationFolder = gui.addFolder('Boid Variation');
+  variationFolder.add(window.settings, 'lengthMultiplierMin', 0.1, 1.5).step(0.1).name('Length Min');
+  variationFolder.add(window.settings, 'lengthMultiplierMax', 1.0, 5.0).step(0.1).name('Length Max');
+  variationFolder.add(window.settings, 'weightMultiplierMin', 0.1, 1.5).step(0.1).name('Weight Min');
+  variationFolder.add(window.settings, 'weightMultiplierMax', 1.0, 3.0).step(0.1).name('Weight Max');
+  variationFolder.open();
+  
+  // Boid management folder
+  const managementFolder = gui.addFolder('Boid Management');
+  managementFolder.add(window.settings, 'maxBoids', 10, 2000).step(10).name('Max Boids');
+  managementFolder.open();
 }
 
 // Expose setup function

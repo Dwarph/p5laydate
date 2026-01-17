@@ -10,12 +10,22 @@ let lastGradientCenterX = null;
 let lastGradientCenterY = null;
 let lastGradientUpdateTime = 0;
 let isCalculatingGradient = false;
-const GRADIENT_UPDATE_THROTTLE = 200; // Only update every 200ms
+let gradientUpdateRequested = false;
+const GRADIENT_UPDATE_THROTTLE = 16; // ~60fps updates (16ms per frame)
+
+// Track previous crank angle for relative input (stage 2 specific)
+let stage2PreviousCrankAngle = null;
 
 function handleStage2Controls(state) {
   // Early return if we're no longer in stage 2 (safety check)
   if (window.currentStage !== 2) {
     return;
+  }
+  
+  // Debug: log that we're in stage 2 (once)
+  if (!window._stage2DebugLogged) {
+    console.log('Stage 2 controls handler active');
+    window._stage2DebugLogged = true;
   }
   
   // Check for A button hold
@@ -52,8 +62,9 @@ function handleStage2Controls(state) {
   }
   
   // Throttle gradient updates to prevent crashes
+  // Allow immediate update if this is the first update (lastGradientUpdateTime === 0)
   const now = millis();
-  const shouldUpdate = (now - lastGradientUpdateTime) > GRADIENT_UPDATE_THROTTLE;
+  const shouldUpdate = lastGradientUpdateTime === 0 || (now - lastGradientUpdateTime) > GRADIENT_UPDATE_THROTTLE;
   
   let needsUpdate = false;
   
@@ -71,20 +82,32 @@ function handleStage2Controls(state) {
                        (state.pressed && state.pressed.right) || false;
   
   if (upPressed) {
-    window.settings.gradientCenterY = max(0, window.settings.gradientCenterY - moveSpeed);
-    needsUpdate = true;
+    const newY = max(0, window.settings.gradientCenterY - moveSpeed);
+    if (newY !== window.settings.gradientCenterY) {
+      window.settings.gradientCenterY = newY;
+      needsUpdate = true;
+    }
   }
   if (downPressed) {
-    window.settings.gradientCenterY = min(1, window.settings.gradientCenterY + moveSpeed);
-    needsUpdate = true;
+    const newY = min(1, window.settings.gradientCenterY + moveSpeed);
+    if (newY !== window.settings.gradientCenterY) {
+      window.settings.gradientCenterY = newY;
+      needsUpdate = true;
+    }
   }
   if (leftPressed) {
-    window.settings.gradientCenterX = max(0, window.settings.gradientCenterX - moveSpeed);
-    needsUpdate = true;
+    const newX = max(0, window.settings.gradientCenterX - moveSpeed);
+    if (newX !== window.settings.gradientCenterX) {
+      window.settings.gradientCenterX = newX;
+      needsUpdate = true;
+    }
   }
   if (rightPressed) {
-    window.settings.gradientCenterX = min(1, window.settings.gradientCenterX + moveSpeed);
-    needsUpdate = true;
+    const newX = min(1, window.settings.gradientCenterX + moveSpeed);
+    if (newX !== window.settings.gradientCenterX) {
+      window.settings.gradientCenterX = newX;
+      needsUpdate = true;
+    }
   }
   
   // Debug: log state structure once to see what's available
@@ -95,15 +118,50 @@ function handleStage2Controls(state) {
     window.debuggedState = true;
   }
   
-  // Crank controls for gradient size
+  // Crank controls for gradient size - relative input
   if (state.crank !== undefined && state.crank !== null && !isNaN(state.crank)) {
-    // Map crank angle (0-360) to gradient size (0.2 to 1.5)
-    const normalizedAngle = state.crank / 360;
-    const newSize = 0.2 + normalizedAngle * 1.3;
-    if (Math.abs(newSize - window.settings.gradientSize) > 0.01) {
-      window.settings.gradientSize = newSize;
-      needsUpdate = true;
+    const currentCrankAngle = state.crank;
+    
+    if (stage2PreviousCrankAngle !== null) {
+      // Calculate relative change in crank angle
+      let deltaAngle = currentCrankAngle - stage2PreviousCrankAngle;
+      
+      // Handle wraparound (e.g., going from 350° to 10° should be +20°, not -340°)
+      if (deltaAngle > 180) {
+        deltaAngle -= 360;
+      } else if (deltaAngle < -180) {
+        deltaAngle += 360;
+      }
+      
+      // Only apply change if there's actual movement (ignore tiny jitter)
+      if (Math.abs(deltaAngle) > 0.1) {
+        // Convert angle change to size change
+        // Scale: full rotation (360°) = change of 1.0 in size
+        // So 1° = 1/360 ≈ 0.0028 change
+        const sizeChange = deltaAngle / 360;
+        
+        // Apply relative change to current size
+        const newSize = constrain(
+          window.settings.gradientSize + sizeChange,
+          0.2,  // min size
+          1.5   // max size
+        );
+        
+        if (Math.abs(newSize - window.settings.gradientSize) > 0.001) {
+          window.settings.gradientSize = newSize;
+          needsUpdate = true;
+        }
+      }
+    } else {
+      // First time detecting crank - initialize tracking but don't change size
+      console.log('Crank detected for first time, angle:', currentCrankAngle);
     }
+    
+    // Update previous angle for next frame
+    stage2PreviousCrankAngle = currentCrankAngle;
+  } else {
+    // No crank input - reset tracking
+    stage2PreviousCrankAngle = null;
   }
   
   // Only update gradient if values changed and enough time has passed
@@ -112,16 +170,31 @@ function handleStage2Controls(state) {
     if (lastGradientSize !== window.settings.gradientSize ||
         lastGradientCenterX !== window.settings.gradientCenterX ||
         lastGradientCenterY !== window.settings.gradientCenterY) {
-      // Defer calculation to next frame to prevent blocking
-      setTimeout(() => {
-        window.createGradientBuffer();
-        lastGradientSize = window.settings.gradientSize;
-        lastGradientCenterX = window.settings.gradientCenterX;
-        lastGradientCenterY = window.settings.gradientCenterY;
-        lastGradientUpdateTime = millis();
-        isCalculatingGradient = false;
-      }, 0);
-      isCalculatingGradient = true;
+      // Request update via requestAnimationFrame for smoother performance
+      if (!gradientUpdateRequested) {
+        gradientUpdateRequested = true;
+        const updateTime = millis();
+        requestAnimationFrame(() => {
+          window.createGradientBuffer();
+          lastGradientSize = window.settings.gradientSize;
+          lastGradientCenterX = window.settings.gradientCenterX;
+          lastGradientCenterY = window.settings.gradientCenterY;
+          lastGradientUpdateTime = updateTime;
+          isCalculatingGradient = false;
+          gradientUpdateRequested = false;
+        });
+        isCalculatingGradient = true;
+      }
+    }
+  } else if (needsUpdate) {
+    // Debug: log why update didn't happen
+    if (frameCount % 60 === 0) { // Log once per second
+      console.log('Stage 2 update blocked:', {
+        needsUpdate,
+        shouldUpdate,
+        isCalculatingGradient,
+        timeSinceLastUpdate: millis() - lastGradientUpdateTime
+      });
     }
   }
 }
@@ -158,6 +231,8 @@ function initializeStage2() {
   lastGradientSize = window.settings.gradientSize;
   lastGradientCenterX = window.settings.gradientCenterX;
   lastGradientCenterY = window.settings.gradientCenterY;
+  // Reset crank tracking
+  stage2PreviousCrankAngle = null;
 }
 
 // Expose functions to global scope

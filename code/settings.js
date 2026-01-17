@@ -13,6 +13,13 @@ window.settings = {
   brushWeight: 1.5,
   brushOpacity: 255,
   strokeLength: 8,
+  // Gaussian distribution ranges for boid variation
+  lengthMultiplierMin: 0.3,
+  lengthMultiplierMax: 2.0,
+  weightMultiplierMin: 0.3,
+  weightMultiplierMax: 6.0,
+  // Boid management
+  maxBoids: 500,
   // Gradient settings
   gradientSize: 1.0, // 0-1, controls radius
   gradientCenterX: 0.5, // 0-1, normalized center position

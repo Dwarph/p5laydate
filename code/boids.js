@@ -20,6 +20,11 @@ class Flock {
   }
 
   addBoid(b) {
+    // Check if we're at max capacity
+    if (this.boids.length >= window.settings.maxBoids) {
+      // Remove the first (oldest) boid to make room
+      this.boids.shift();
+    }
     this.boids.push(b);
   }
 }
@@ -44,6 +49,18 @@ class Boid {
     
     // Store previous position for brush trail
     this.previousPosition = createVector(x, y);
+    
+    // Vary stroke length using Gaussian distribution
+    // Mean of 1.0, standard deviation of 0.3, clamped to configurable range
+    let lengthMultiplier = randomGaussian(1.0, 0.3);
+    // Clamp to range from settings
+    this.lengthMultiplier = constrain(lengthMultiplier, window.settings.lengthMultiplierMin, window.settings.lengthMultiplierMax);
+    
+    // Vary stroke weight using Gaussian distribution
+    // Mean of 1.0, standard deviation of 0.3, clamped to configurable range
+    let weightMultiplier = randomGaussian(1.0, 0.3);
+    // Clamp to range from settings
+    this.weightMultiplier = constrain(weightMultiplier, window.settings.weightMultiplierMin, window.settings.weightMultiplierMax);
   }
 
   run(boids, crankAngle, crankDocked, crankActive) {
@@ -147,14 +164,16 @@ class Boid {
     let theta = this.velocity.heading();
     
     // Draw a small stroke in the direction of movement
-    const strokeLen = window.settings.strokeLength * this.size;
+    // Apply Gaussian-distributed length multiplier
+    const strokeLen = window.settings.strokeLength * this.size * this.lengthMultiplier;
     const endX = this.position.x + cos(theta) * strokeLen;
     const endY = this.position.y + sin(theta) * strokeLen;
     
     // Optimized brush effect: fewer layers and segments for performance
     noFill();
     
-    const baseWeight = window.settings.brushWeight;
+    // Apply Gaussian-distributed weight multiplier
+    const baseWeight = window.settings.brushWeight * this.weightMultiplier;
     
     // Use cached noise offset (calculate once per boid)
     const noiseOffset = (this.position.x * 0.01 + this.position.y * 0.01) % 1000;
