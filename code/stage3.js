@@ -16,7 +16,7 @@ const PUSH_FORCE_STRENGTH = 2.0; // Force strength when pushing away
 
 // A button state for continuous spawning
 let lastSpawnTime = 0;
-const SPAWN_INTERVAL = 100; // Milliseconds between spawns when A is held
+const SPAWN_INTERVAL = 50; // Milliseconds between spawns when A is held
 
 function handleStage3Controls(state) {
   // D-pad controls for spawn position
@@ -168,6 +168,10 @@ function drawStage3Instructions() {
         <div class="control-capsule">
           <div class="control-icon">↑↓←→</div>
           <div class="control-text">D-pad: Move spawn</div>
+        </div>
+        <div class="control-capsule">
+          <div class="control-icon">↻</div>
+          <div class="control-text">Crank: Influence direction</div>
         </div>
         <div class="control-capsule">
           <div class="control-icon">A</div>

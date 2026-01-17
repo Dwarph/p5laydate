@@ -38,6 +38,7 @@ function setupGUI() {
   
   // Boid management folder
   const managementFolder = gui.addFolder('Boid Management');
+  managementFolder.add(window.settings, 'initialBoidCount', 0, 500).step(10).name('Initial Boid Count');
   managementFolder.add(window.settings, 'maxBoids', 10, 2000).step(10).name('Max Boids');
   
   // Close the GUI panel initially

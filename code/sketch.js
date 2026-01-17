@@ -109,7 +109,7 @@ function initializeFlock() {
   window.flock = flock;
   
   // Add an initial set of boids into the system
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < window.settings.initialBoidCount; i++) {
     let b = new Boid(width / 2, height / 2);
     flock.addBoid(b);
   }
