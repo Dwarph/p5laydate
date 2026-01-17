@@ -36,11 +36,37 @@ body {
   line-height: 1.4;
 }
 
-#stage-content .instruction {
-  margin-top: 12px;
-  font-size: 16px;
+#stage-content .stage-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+#stage-content .control-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#stage-content .control-capsule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  font-size: 14px;
   font-weight: 400;
-  opacity: 0.9;
+}
+
+#stage-content .control-icon {
+  font-size: 16px;
+  min-width: 24px;
+  text-align: center;
+}
+
+#stage-content .control-text {
+  flex: 1;
 }
 
 /* Progress bar overlay */

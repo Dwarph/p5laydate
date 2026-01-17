@@ -163,8 +163,21 @@ function drawStage3Instructions() {
   
   if (window.currentStage === 3) {
     stageContent.innerHTML = `
-      <div>Stage 3: Boids Active</div>
-      <div class="instruction">D-pad: Move spawn | A: Spawn | B: Attract/Push</div>
+      <div class="stage-title">Stage 3: Boids Active</div>
+      <div class="control-list">
+        <div class="control-capsule">
+          <div class="control-icon">↑↓←→</div>
+          <div class="control-text">D-pad: Move spawn</div>
+        </div>
+        <div class="control-capsule">
+          <div class="control-icon">A</div>
+          <div class="control-text">A: Spawn</div>
+        </div>
+        <div class="control-capsule">
+          <div class="control-icon">B</div>
+          <div class="control-text">B: Attract/Push</div>
+        </div>
+      </div>
     `;
     stageOverlay.style.display = 'block';
     progressOverlay.style.display = 'none';

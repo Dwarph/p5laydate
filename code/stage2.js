@@ -201,13 +201,26 @@ function drawStage2Instructions() {
   const progressFill = document.querySelector('.progress-fill');
   
   if (window.currentStage === 2) {
-    const colorNames = ['Blue', 'Yellow', 'Off-white'];
-    const currentColorName = colorNames[currentGradientIndex];
-    
     stageContent.innerHTML = `
-      <div>Stage 2: Place Gradients</div>
-      <div class="instruction">Current: ${currentColorName} | Placed: ${placedGradients.length}</div>
-      <div class="instruction">Crank: Size | D-pad: Position | Press A: Place | Hold B (1s): Finish</div>
+      <div class="stage-title">Stage 2: Place Gradients</div>
+      <div class="control-list">
+        <div class="control-capsule">
+          <div class="control-icon">↻</div>
+          <div class="control-text">Crank: Size</div>
+        </div>
+        <div class="control-capsule">
+          <div class="control-icon">↑↓←→</div>
+          <div class="control-text">D-pad: Position</div>
+        </div>
+        <div class="control-capsule">
+          <div class="control-icon">A</div>
+          <div class="control-text">Press A: Place</div>
+        </div>
+        <div class="control-capsule">
+          <div class="control-icon">B</div>
+          <div class="control-text">Hold B (1s): Finish</div>
+        </div>
+      </div>
     `;
     stageOverlay.style.display = 'block';
     
