@@ -25,6 +25,13 @@ function setupGUI() {
   const appearanceFolder = gui.addFolder('Appearance');
   appearanceFolder.add(window.settings, 'boidSize', 1, 10).step(0.5).name('Boid Size');
   appearanceFolder.open();
+  
+  // Brush settings folder
+  const brushFolder = gui.addFolder('Brush Settings');
+  brushFolder.add(window.settings, 'brushWeight', 0.5, 5).step(0.1).name('Brush Weight');
+  brushFolder.add(window.settings, 'brushOpacity', 0, 255).step(1).name('Brush Opacity');
+  brushFolder.add(window.settings, 'strokeLength', 2, 20).step(0.5).name('Stroke Length');
+  brushFolder.open();
 }
 
 // Expose setup function

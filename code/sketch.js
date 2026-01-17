@@ -3,7 +3,9 @@
 let flock;
 
 function setup() {
+  // Use 2D canvas - p5.brush should work in 2D
   createCanvas(1920, 1080);
+  
   createP('Drag the mouse to generate new boids.');
   createP('Connect your Playdate and click the button below to start.');
 
@@ -28,7 +30,7 @@ function setup() {
   }
 
   describe(
-    'A group of bird-like objects, represented by triangles, moving across the canvas, modeling flocking behavior.'
+    'A group of bird-like objects, represented by brush strokes, moving across the canvas, modeling flocking behavior.'
   );
 }
 
@@ -39,7 +41,7 @@ function createBoidAtCenter() {
 }
 
 function draw() {
-  background(0);
+  background('#fdebb8');
   flock.run();
 }
 

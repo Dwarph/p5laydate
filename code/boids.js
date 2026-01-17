@@ -33,8 +33,14 @@ class Boid {
 
     // Maximum steering force
     this.maxForce = window.settings.maxForce;
-    colorMode(HSB);
-    this.color = color(random(256), 255, 255);
+    
+    // Use varying shades of black/gray instead of colorful HSB
+    // Random brightness between 0 (black) and 60 (dark gray) for charcoal effect
+    const brightness = random(0, 60);
+    this.color = color(brightness);
+    
+    // Store previous position for brush trail
+    this.previousPosition = createVector(x, y);
   }
 
   run(boids, crankAngle, crankDocked) {
@@ -88,6 +94,9 @@ class Boid {
     this.maxForce = window.settings.maxForce;
     this.size = window.settings.boidSize;
     
+    // Store previous position before updating
+    this.previousPosition.set(this.position.x, this.position.y);
+    
     // Update velocity
     this.velocity.add(this.acceleration);
 
@@ -118,19 +127,87 @@ class Boid {
   }
 
   render() {
-    // Draw a triangle rotated in the direction of velocity
-    let theta = this.velocity.heading() + radians(90);
-    fill(this.color);
-    stroke(255);
-    push();
-    translate(this.position.x, this.position.y);
-    rotate(theta);
-    beginShape();
-    vertex(0, -this.size * 2);
-    vertex(-this.size, this.size * 2);
-    vertex(this.size, this.size * 2);
-    endShape(CLOSE);
-    pop();
+    // Draw boid as a custom charcoal/graphite-style stroke
+    this.drawBrushStroke();
+  }
+  
+  drawBrushStroke() {
+    // Get color components (grayscale)
+    const gray = red(this.color); // Since it's grayscale, r=g=b
+    const a = window.settings.brushOpacity / 255;
+    
+    // Calculate direction of movement
+    let theta = this.velocity.heading();
+    
+    // Draw a small stroke in the direction of movement
+    const strokeLen = window.settings.strokeLength * this.size;
+    const endX = this.position.x + cos(theta) * strokeLen;
+    const endY = this.position.y + sin(theta) * strokeLen;
+    
+    // Optimized brush effect: fewer layers and segments for performance
+    noFill();
+    
+    const baseWeight = window.settings.brushWeight;
+    
+    // Use cached noise offset (calculate once per boid)
+    const noiseOffset = (this.position.x * 0.01 + this.position.y * 0.01) % 1000;
+    
+    // Reduced layers for performance (2 instead of 4)
+    const numLayers = 2;
+    const numSegments = Math.max(4, Math.floor(strokeLen / 2)); // Fewer segments
+    
+    // Fixed texture amount for organic variation
+    const textureAmount = 0.8;
+    
+    for (let layer = 0; layer < numLayers; layer++) {
+      const layerOpacity = a * (0.3 + layer * 0.35);
+      const layerWeight = baseWeight * (0.6 + layer * 0.4);
+      
+      stroke(gray, gray, gray, layerOpacity * 255);
+      strokeWeight(layerWeight);
+      
+      // Draw segmented line with noise (optimized)
+      beginShape();
+      noFill();
+      
+      for (let i = 0; i <= numSegments; i++) {
+        const t = i / numSegments;
+        let px = lerp(this.position.x, endX, t);
+        let py = lerp(this.position.y, endY, t);
+        
+        // Simplified noise calculation (fewer calls)
+        const noiseVal = noise(noiseOffset + t * 10 + layer * 0.5);
+        const noiseOffsetX = (noiseVal - 0.5) * textureAmount * 3;
+        const noiseOffsetY = (noise(noiseOffset + t * 10 + 50 + layer * 0.5) - 0.5) * textureAmount * 3;
+        
+        // Add minimal jitter for texture
+        px += noiseOffsetX + (random() - 0.5) * textureAmount * 0.5;
+        py += noiseOffsetY + (random() - 0.5) * textureAmount * 0.5;
+        
+        vertex(px, py);
+      }
+      
+      endShape();
+    }
+    
+    // Reduced particles for performance
+    const numParticles = Math.floor(strokeLen / 4);
+    for (let i = 0; i < numParticles; i++) {
+      if (random() > 0.7) { // Higher threshold to draw fewer
+        const t = random();
+        let px = lerp(this.position.x, endX, t);
+        let py = lerp(this.position.y, endY, t);
+        
+        px += (random() - 0.5) * textureAmount * 1.5;
+        py += (random() - 0.5) * textureAmount * 1.5;
+        
+        const particleSize = random(0.2, 0.8);
+        const particleOpacity = a * random(0.2, 0.35);
+        fill(gray, gray, gray, particleOpacity * 255);
+        noStroke();
+        ellipse(px, py, particleSize);
+      }
+    }
   }
 
   // Wraparound

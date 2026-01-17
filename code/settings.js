@@ -8,5 +8,9 @@ window.settings = {
   desiredSeparation: 25.0,
   neighborDistance: 50,
   crankInfluenceStrength: 0.08,
-  boidSize: 3.0
+  boidSize: 3.0,
+  // Custom brush settings (simulated charcoal/graphite effect)
+  brushWeight: 1.5,
+  brushOpacity: 255,
+  strokeLength: 8
 };
