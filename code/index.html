@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Sketch</title>
+
+    <link rel="stylesheet" type="text/css" href="style.css">
+
+    <script src="libraries/p5.min.js"></script>
+    <script src="libraries/p5.sound.min.js"></script>
+    <!-- dat.GUI for controls (Leva is React-first, dat.GUI is standard for p5.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/dat.gui@0.7.9/build/dat.gui.min.js"></script>
+  </head>
+
+  <body>
+    <!-- Load modules in order: settings, then dependencies, then main sketch -->
+    <script src="settings.js"></script>
+    <script src="boids.js"></script>
+    <script src="playdate.js"></script>
+    <script src="controls.js"></script>
+    <script src="sketch.js"></script>
+  </body>
+</html>
