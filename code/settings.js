@@ -12,5 +12,9 @@ window.settings = {
   // Custom brush settings (simulated charcoal/graphite effect)
   brushWeight: 1.5,
   brushOpacity: 255,
-  strokeLength: 8
+  strokeLength: 8,
+  // Gradient settings
+  gradientSize: 1.0, // 0-1, controls radius
+  gradientCenterX: 0.5, // 0-1, normalized center position
+  gradientCenterY: 0.5
 };

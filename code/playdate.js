@@ -11,7 +11,10 @@ let pdUsbModule = null;
 window.playdate = {
   getCrankAngle: () => currentCrankAngle,
   isCrankDocked: () => isCrankDocked,
-  isConnected: () => playdateDevice !== null
+  isConnected: () => playdateDevice !== null,
+  // Internal setters for direct updates from sketch.js
+  _setCrankAngle: (angle) => { currentCrankAngle = angle; },
+  _setCrankDocked: (docked) => { isCrankDocked = docked; }
 };
 
 // Callback for when a button is pressed (set by main sketch)
@@ -73,6 +76,21 @@ async function connectToPlaydate() {
     await playdateDevice.startPollingControls();
     isPollingControls = true;
     console.log('Started polling controls');
+    
+    // Set up callbacks after connection is established
+    if (window.playdate && window.playdate.setButtonPressCallback && window.handleButtonPress) {
+      window.playdate.setButtonPressCallback(window.handleButtonPress);
+      console.log('Button press callback set after connection');
+    }
+    if (window.playdate && window.playdate.setControlsUpdateCallback && window.handleControlsUpdate) {
+      window.playdate.setControlsUpdateCallback(window.handleControlsUpdate);
+      console.log('Controls update callback set after connection');
+    }
+    
+    // Move to stage 2 after successful connection
+    if (window.setStage) {
+      window.setStage(2);
+    }
   } catch (error) {
     console.error('Failed to connect to Playdate:', error);
     alert('Failed to connect to Playdate: ' + error.message + '\n\nMake sure it is connected via USB and unlocked.');
@@ -81,7 +99,12 @@ async function connectToPlaydate() {
 }
 
 function handleControlsUpdate(state) {
-  // Check for button presses
+  // Call the main sketch's controls update handler if set
+  if (onControlsUpdateCallback) {
+    onControlsUpdateCallback(state);
+  }
+  
+  // Check for button presses (for stage 3 boid spawning)
   const buttons = ['a', 'b', 'up', 'down', 'left', 'right', 'menu', 'lock'];
   
   for (let button of buttons) {
@@ -92,6 +115,7 @@ function handleControlsUpdate(state) {
     
     // Detect new button press (transition from not pressed to pressed)
     if (isPressed && !wasPressed && onButtonPressCallback) {
+      console.log('Button press detected:', button);
       onButtonPressCallback();
     }
     
@@ -99,20 +123,86 @@ function handleControlsUpdate(state) {
   }
   
   // Update current crank angle and dock status (used to influence boid direction)
-  if (state.crank !== undefined && state.crank !== null && !isNaN(state.crank)) {
-    currentCrankAngle = state.crank;
+  // This should work in all stages, including stage 3
+  // Check multiple possible property names for crank angle
+  let crankValue = state.crank;
+  if (crankValue === undefined || crankValue === null) {
+    // Try alternative property names
+    crankValue = state.crankAngle;
+  }
+  if (crankValue === undefined || crankValue === null) {
+    crankValue = state.crankValue;
   }
   
-  // Check if crank is docked
-  // The state might have crankDocked, isCrankDocked, or we can use the device method
-  if (playdateDevice && playdateDevice.isCrankDocked && typeof playdateDevice.isCrankDocked === 'function') {
-    isCrankDocked = playdateDevice.isCrankDocked();
-  } else if (state.crankDocked !== undefined) {
-    isCrankDocked = state.crankDocked;
+  // Check for explicit dock status first (most reliable)
+  let explicitDocked = undefined;
+  if (state.crankDocked !== undefined) {
+    explicitDocked = state.crankDocked;
   } else if (state.isCrankDocked !== undefined) {
-    isCrankDocked = state.isCrankDocked;
+    explicitDocked = state.isCrankDocked;
+  }
+  
+  // Update crank angle if we have a valid value
+  if (crankValue !== undefined && crankValue !== null && !isNaN(crankValue)) {
+    const oldAngle = currentCrankAngle;
+    currentCrankAngle = crankValue;
+    // If we have a crank angle, it's definitely undocked
+    isCrankDocked = false;
+    
+    // Log every crank update to debug
+    if (oldAngle !== currentCrankAngle) {
+      console.log('Crank angle updated:', currentCrankAngle, 'State:', {
+        crank: state.crank,
+        crankAngle: state.crankAngle,
+        crankValue: state.crankValue,
+        crankDocked: state.crankDocked,
+        isCrankDocked: state.isCrankDocked,
+        stateKeys: Object.keys(state)
+      });
+    }
+  } else {
+    // No crank angle in this update
+    // Only update dock status if we have explicit information
+    if (explicitDocked !== undefined) {
+      isCrankDocked = explicitDocked;
+      // Only clear angle if explicitly docked
+      if (explicitDocked === true) {
+        currentCrankAngle = null;
+      }
+    }
+    // If no explicit dock info, don't change dock status - keep last known state
+    // This preserves the angle if we had one before
+    
+    // Log the full state structure to see what we're getting
+    // Log more frequently to catch the issue
+    if (Math.random() < 0.2) { // 20% chance to log
+      console.log('No crank angle in state update. Full state:', state);
+      console.log('State keys:', Object.keys(state));
+      console.log('Current stored angle:', currentCrankAngle, 'Docked:', isCrankDocked);
+      console.log('Explicit docked:', explicitDocked);
+    }
+  }
+  
+  // Debug: log dock status and angle more frequently
+  if (Math.random() < 0.1) { // 10% chance to log
+    console.log('Crank status check:', {
+      currentCrankAngle: currentCrankAngle,
+      isCrankDocked: isCrankDocked,
+      stateCrank: state.crank,
+      explicitDocked: explicitDocked,
+      hasCrankValue: crankValue !== undefined && crankValue !== null
+    });
   }
 }
+
+// Callback for controls update (set by main sketch)
+let onControlsUpdateCallback = null;
+
+function setControlsUpdateCallback(callback) {
+  onControlsUpdateCallback = callback;
+}
+
+window.playdate.setControlsUpdateCallback = setControlsUpdateCallback;
 
 // Expose connect function
 window.connectToPlaydate = connectToPlaydate;

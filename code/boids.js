@@ -8,10 +8,17 @@ class Flock {
   }
 
   run() {
+    // Get crank info once per frame for all boids
+    const crankAngle = window.playdate ? window.playdate.getCrankAngle() : null;
+    const crankDocked = window.playdate ? window.playdate.isCrankDocked() : true;
+    
+    // Debug: log crank info occasionally
+    if (Math.random() < 0.01) { // 1% chance to log
+      console.log('Flock.run() - Crank angle:', crankAngle, 'Docked:', crankDocked);
+    }
+    
     for (let boid of this.boids) {
       // Pass the entire list of boids, current crank angle, and dock status to each boid
-      const crankAngle = window.playdate ? window.playdate.getCrankAngle() : null;
-      const crankDocked = window.playdate ? window.playdate.isCrankDocked() : true;
       boid.run(this.boids, crankAngle, crankDocked);
     }
   }
@@ -64,6 +71,18 @@ class Boid {
     // Crank influence: create a subtle force in the direction of the crank
     // Only apply when crank is undocked
     let crankForce = createVector(0, 0);
+    
+    // Debug: log crank values occasionally
+    if (Math.random() < 0.005) { // 0.5% chance to log
+      console.log('Boid.flock() - Crank check:', {
+        crankDocked: crankDocked,
+        crankAngle: crankAngle,
+        isNull: crankAngle === null,
+        isNaN: isNaN(crankAngle),
+        willApply: !crankDocked && crankAngle !== null && !isNaN(crankAngle)
+      });
+    }
+    
     if (!crankDocked && crankAngle !== null && !isNaN(crankAngle)) {
       // Convert crank angle (degrees, 0-360) to radians
       // Playdate crank: 0° is at 3 o'clock, increases clockwise
@@ -73,6 +92,11 @@ class Boid {
       crankForce = createVector(cos(angle), sin(angle));
       // Use settings from GUI
       crankForce.mult(window.settings.crankInfluenceStrength);
+      
+      // Debug: log occasionally to verify crank force is being applied
+      if (Math.random() < 0.01) { // 1% chance to log
+        console.log('Crank force applied:', crankForce, 'angle:', crankAngle, 'docked:', crankDocked, 'strength:', window.settings.crankInfluenceStrength);
+      }
     }
 
     // Use weights from settings
