@@ -6,6 +6,9 @@
 
     <title>Sketch</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="style.css">
 
     <script src="libraries/p5.min.js"></script>
@@ -15,6 +18,26 @@
   </head>
 
   <body>
+    <!-- Connection UI (shown initially) -->
+    <div id="connection-ui" class="playdate-overlay connection-ui">
+      <div class="connection-content">
+        <div class="connection-title">Connect Your Playdate</div>
+        <div class="connection-instruction">Drag the mouse to generate new boids.</div>
+        <button id="connect-button" class="playdate-button">Connect Playdate</button>
+      </div>
+    </div>
+    
+    <!-- Stage UI Overlays -->
+    <div id="stage-overlay" class="playdate-overlay" style="display: none;">
+      <div id="stage-content"></div>
+    </div>
+    <div id="progress-overlay" class="playdate-overlay progress-container" style="display: none;">
+      <div class="progress-bar">
+        <div class="progress-fill"></div>
+        <div class="progress-text">Hold A to confirm...</div>
+      </div>
+    </div>
+    
     <!-- Load modules in order: settings, then dependencies, then main sketch -->
     <script src="settings.js"></script>
     <script src="boids.js"></script>

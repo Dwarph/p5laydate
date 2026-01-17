@@ -11,15 +11,11 @@ class Flock {
     // Get crank info once per frame for all boids
     const crankAngle = window.playdate ? window.playdate.getCrankAngle() : null;
     const crankDocked = window.playdate ? window.playdate.isCrankDocked() : true;
-    
-    // Debug: log crank info occasionally
-    if (Math.random() < 0.01) { // 1% chance to log
-      console.log('Flock.run() - Crank angle:', crankAngle, 'Docked:', crankDocked);
-    }
+    const crankActive = window.playdate ? window.playdate.isCrankActive() : false;
     
     for (let boid of this.boids) {
-      // Pass the entire list of boids, current crank angle, and dock status to each boid
-      boid.run(this.boids, crankAngle, crankDocked);
+      // Pass the entire list of boids, current crank angle, dock status, and activity to each boid
+      boid.run(this.boids, crankAngle, crankDocked, crankActive);
     }
   }
 
@@ -50,8 +46,8 @@ class Boid {
     this.previousPosition = createVector(x, y);
   }
 
-  run(boids, crankAngle, crankDocked) {
-    this.flock(boids, crankAngle, crankDocked);
+  run(boids, crankAngle, crankDocked, crankActive) {
+    this.flock(boids, crankAngle, crankDocked, crankActive);
     this.update();
     this.borders();
     this.render();
@@ -63,41 +59,28 @@ class Boid {
   }
 
   // We accumulate a new acceleration each time based on three rules
-  flock(boids, crankAngle, crankDocked) {
+  flock(boids, crankAngle, crankDocked, crankActive) {
     let separation = this.separate(boids);
     let alignment = this.align(boids);
     let cohesion = this.cohesion(boids);
     
     // Crank influence: create a subtle force in the direction of the crank
-    // Only apply when crank is undocked
+    // Only apply when crank is undocked AND actively being turned (within 0.2s)
     let crankForce = createVector(0, 0);
     
-    // Debug: log crank values occasionally
-    if (Math.random() < 0.005) { // 0.5% chance to log
-      console.log('Boid.flock() - Crank check:', {
-        crankDocked: crankDocked,
-        crankAngle: crankAngle,
-        isNull: crankAngle === null,
-        isNaN: isNaN(crankAngle),
-        willApply: !crankDocked && crankAngle !== null && !isNaN(crankAngle)
-      });
-    }
-    
-    if (!crankDocked && crankAngle !== null && !isNaN(crankAngle)) {
+    // Ensure no influence when docked
+    if (!crankDocked && crankActive && crankAngle !== null && !isNaN(crankAngle)) {
+      // Crank is actively being turned - apply full influence immediately
       // Convert crank angle (degrees, 0-360) to radians
       // Playdate crank: 0° is at 3 o'clock, increases clockwise
       // p5.js: 0 radians is at 3 o'clock, increases counter-clockwise
       // So we need to negate and adjust: -radians(crankAngle) + PI/2
       let angle = -radians(crankAngle) + PI / 2;
       crankForce = createVector(cos(angle), sin(angle));
-      // Use settings from GUI
+      // Use settings from GUI - full strength when active
       crankForce.mult(window.settings.crankInfluenceStrength);
-      
-      // Debug: log occasionally to verify crank force is being applied
-      if (Math.random() < 0.01) { // 1% chance to log
-        console.log('Crank force applied:', crankForce, 'angle:', crankAngle, 'docked:', crankDocked, 'strength:', window.settings.crankInfluenceStrength);
-      }
     }
+    // If docked or not active (quiet for 0.2s), no influence - crankForce stays (0, 0)
 
     // Use weights from settings
     separation.mult(window.settings.separationWeight);

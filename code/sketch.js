@@ -8,6 +8,12 @@ let aButtonHeld = false;
 const A_HOLD_TIME = 1000; // 1 second in milliseconds
 let stage3ButtonStates = {}; // Track button states for stage 3
 
+// Playdate color palette
+const PLAYDATE_YELLOW = '#FFB800';
+const PLAYDATE_BLACK = '#000000';
+const PLAYDATE_WHITE = '#FFFFFF';
+const PLAYDATE_GRAY = '#666666';
+
 // Track previous values to only update when changed
 let lastGradientSize = null;
 let lastGradientCenterX = null;
@@ -27,20 +33,40 @@ function setStage(stage) {
     lastGradientCenterX = window.settings.gradientCenterX;
     lastGradientCenterY = window.settings.gradientCenterY;
   }
+  // Update UI visibility
+  updateConnectionUI();
 }
 
 window.setStage = setStage;
+
+// Update connection UI visibility
+function updateConnectionUI() {
+  const connectionUI = document.getElementById('connection-ui');
+  const stageOverlay = document.getElementById('stage-overlay');
+  
+  if (connectionUI && stageOverlay) {
+    if (currentStage === 1) {
+      connectionUI.style.display = 'block';
+      stageOverlay.style.display = 'none';
+    } else {
+      connectionUI.style.display = 'none';
+      stageOverlay.style.display = 'block';
+    }
+  }
+}
 
 function setup() {
   // Use 2D canvas - p5.brush should work in 2D
   createCanvas(1920, 1080);
   
-  createP('Drag the mouse to generate new boids.');
-  createP('Connect your Playdate and click the button below to start.');
-
-  // Add connect button
-  let connectButton = createButton('Connect Playdate');
-  connectButton.mousePressed(connectToPlaydate);
+  // Set up connect button (HTML element created in index.html)
+  const connectButton = document.getElementById('connect-button');
+  if (connectButton) {
+    connectButton.addEventListener('click', connectToPlaydate);
+  }
+  
+  // Show connection UI initially
+  updateConnectionUI();
 
   // Don't initialize flock yet - wait for stage 3
   flock = null;
@@ -108,14 +134,41 @@ function handleControlsUpdate(state) {
         window.playdate._setCrankDocked(false);
       }
     } else {
-      // No crank angle - check if explicitly docked
-      const docked = state.crankDocked !== undefined ? state.crankDocked : 
-                     (state.isCrankDocked !== undefined ? state.isCrankDocked : null);
+      // No crank angle in this update
+      // Check if explicitly docked (check multiple property names)
+      let docked = null;
+      if (state.crankDocked !== undefined) {
+        docked = state.crankDocked;
+      } else if (state.isCrankDocked !== undefined) {
+        docked = state.isCrankDocked;
+      } else if (state.docked !== undefined) {
+        docked = state.docked;
+      }
+      
       if (docked !== null && window.playdate) {
+        // We have explicit dock information
         window.playdate._setCrankDocked(docked);
         if (docked) {
           window.playdate._setCrankAngle(null);
         }
+      } else if (window.playdate) {
+        // No explicit dock info and no crank value
+        // Check if we previously had a crank angle - if we did and now we don't,
+        // and it's been a while, infer that it might be docked
+        const currentAngle = window.playdate.getCrankAngle();
+        const currentDocked = window.playdate.isCrankDocked();
+        
+        // If we had an angle before but now we're not getting updates,
+        // and we're not already marked as docked, check if we should infer docked
+        if (currentAngle !== null && !currentDocked) {
+          // We had an angle but aren't getting updates now
+          // Don't automatically assume docked - might just be slow updates
+          // Only set docked if we have explicit info or if angle was cleared
+        } else if (currentAngle === null && !currentDocked) {
+          // Never had an angle and not explicitly undocked - assume docked
+          window.playdate._setCrankDocked(true);
+        }
+        // Otherwise keep current dock state
       }
     }
   }
@@ -123,11 +176,13 @@ function handleControlsUpdate(state) {
   // Stage 2: Configure gradient
   if (currentStage === 2) {
     // Check for A button hold
-    const aPressed = (state.buttonDown && state.buttonDown.a) || 
-                     (state.pressed && state.pressed.a) || false;
+    // Note: state.buttonDown.a appears to be mapped to the B button on the Playdate
+    const aPressed = (state.buttonDown && state.buttonDown.b) || 
+                     (state.pressed && state.pressed.b) || false;
     
     if (aPressed && !aButtonHeld) {
       // Just started holding
+      console.log('A button hold started');
       aButtonHeld = true;
       aButtonHoldStart = millis();
     } else if (aPressed && aButtonHeld) {
@@ -322,34 +377,116 @@ function draw() {
   // Only run flock in stage 3
   if (currentStage === 3 && flock) {
     flock.run();
+    // Draw crank debug info
+    drawCrankDebug();
   }
 }
 
-function drawStageInstructions() {
-  fill(0);
-  textSize(24);
+function drawCrankDebug() {
+  if (!window.playdate) return;
+  
+  const crankAngle = window.playdate.getCrankAngle();
+  const crankDocked = window.playdate.isCrankDocked();
+  const crankActive = window.playdate.isCrankActive();
+  
+  // Draw debug panel in bottom-left corner
+  const panelY = height - 130;
+  push();
+  fill(0, 0, 0, 200); // Semi-transparent black background
+  noStroke();
+  rect(10, panelY, 300, 120, 5);
+  
+  // Text settings
+  fill(255);
+  textSize(16);
   textAlign(LEFT, TOP);
   
-  if (currentStage === 1) {
-    text('Stage 1: Connect your Playdate', 20, 20);
-  } else if (currentStage === 2) {
-    text('Stage 2: Configure Gradient', 20, 20);
-    text('Crank: Size | D-pad: Position | Hold A (1s): Confirm', 20, 50);
+  // Dock state
+  const dockText = crankDocked ? 'DOCKED' : 'UNDOCKED';
+  const dockColor = crankDocked ? color(255, 100, 100) : color(100, 255, 100);
+  fill(dockColor);
+  text(`Crank: ${dockText}`, 20, panelY + 10);
+  
+  // Rotation state
+  fill(255);
+  if (crankAngle !== null && !isNaN(crankAngle)) {
+    text(`Angle: ${crankAngle.toFixed(1)}°`, 20, panelY + 35);
+  } else {
+    text(`Angle: N/A`, 20, panelY + 35);
+  }
+  
+  // Active state
+  const activeText = crankActive ? 'ACTIVE' : 'INACTIVE';
+  const activeColor = crankActive ? color(100, 255, 100) : color(200, 200, 200);
+  fill(activeColor);
+  text(`Status: ${activeText}`, 20, panelY + 60);
+  
+  // Visual indicator: draw a circle with a line showing the angle
+  if (crankAngle !== null && !isNaN(crankAngle) && !crankDocked) {
+    const centerX = 250;
+    const centerY = panelY + 60;
+    const radius = 30;
     
-    // Show A button hold progress
+    // Draw circle
+    fill(50, 50, 50, 150);
+    stroke(255);
+    strokeWeight(2);
+    circle(centerX, centerY, radius * 2);
+    
+    // Draw angle line
+    const angleRad = -radians(crankAngle) + PI / 2; // Convert to p5.js coordinate system
+    const endX = centerX + cos(angleRad) * radius;
+    const endY = centerY + sin(angleRad) * radius;
+    
+    stroke(crankActive ? color(100, 255, 100) : color(200, 200, 200));
+    strokeWeight(3);
+    line(centerX, centerY, endX, endY);
+    
+    // Draw center dot
+    fill(255);
+    noStroke();
+    circle(centerX, centerY, 4);
+  }
+  
+  pop();
+}
+
+function drawStageInstructions() {
+  const stageOverlay = document.getElementById('stage-overlay');
+  const stageContent = document.getElementById('stage-content');
+  const progressOverlay = document.getElementById('progress-overlay');
+  const progressFill = document.querySelector('.progress-fill');
+  
+  if (currentStage === 1) {
+    stageContent.innerHTML = 'Stage 1: Connect your Playdate';
+    stageOverlay.style.display = 'block';
+    progressOverlay.style.display = 'none';
+  } else if (currentStage === 2) {
+    stageContent.innerHTML = `
+      <div>Stage 2: Configure Gradient</div>
+      <div class="instruction">Crank: Size | D-pad: Position | Hold A (1s): Confirm</div>
+    `;
+    stageOverlay.style.display = 'block';
+    
+    // Update progress bar
     if (aButtonHeld && aButtonHoldStart) {
-      const holdDuration = millis() - aButtonHoldStart;
-      const progress = min(holdDuration / A_HOLD_TIME, 1);
-      const barWidth = 200;
-      const barHeight = 10;
-      fill(100);
-      rect(20, 90, barWidth, barHeight);
-      fill(0);
-      rect(20, 90, barWidth * progress, barHeight);
+      const holdProgress = (millis() - aButtonHoldStart) / A_HOLD_TIME;
+      progressFill.style.width = (holdProgress * 100) + '%';
+      progressOverlay.style.display = 'block';
+    } else {
+      progressOverlay.style.display = 'none';
+      progressFill.style.width = '0%';
     }
   } else if (currentStage === 3) {
-    text('Stage 3: Boids Active', 20, 20);
-    text('Press buttons to spawn boids', 20, 50);
+    stageContent.innerHTML = `
+      <div>Stage 3: Boids Active</div>
+      <div class="instruction">Press buttons to spawn boids</div>
+    `;
+    stageOverlay.style.display = 'block';
+    progressOverlay.style.display = 'none';
+  } else {
+    stageOverlay.style.display = 'none';
+    progressOverlay.style.display = 'none';
   }
 }
 

@@ -3,17 +3,41 @@
 let playdateDevice = null;
 let previousButtonStates = {};
 let currentCrankAngle = null;
+let previousCrankAngle = null;
+let lastCrankChangeTime = 0;
 let isCrankDocked = true; // Start as docked
 let isPollingControls = false;
 let pdUsbModule = null;
+const CRANK_INACTIVE_THRESHOLD = 200; // ms - if crank hasn't changed in this time, stop influence
 
 // Expose these to global scope for other modules
 window.playdate = {
   getCrankAngle: () => currentCrankAngle,
   isCrankDocked: () => isCrankDocked,
   isConnected: () => playdateDevice !== null,
+  isCrankActive: () => {
+    // Crank is active if it's not docked, has a valid angle, and has changed recently
+    if (isCrankDocked || currentCrankAngle === null || isNaN(currentCrankAngle)) {
+      return false;
+    }
+    const now = Date.now();
+    const timeSinceChange = now - lastCrankChangeTime;
+    return timeSinceChange < CRANK_INACTIVE_THRESHOLD;
+  },
   // Internal setters for direct updates from sketch.js
-  _setCrankAngle: (angle) => { currentCrankAngle = angle; },
+  _setCrankAngle: (angle) => { 
+    const oldAngle = currentCrankAngle;
+    currentCrankAngle = angle;
+    // Update activity timestamp ONLY when angle actually changes
+    if (angle !== null && !isNaN(angle)) {
+      const angleChanged = (oldAngle === null || Math.abs(oldAngle - angle) > 0.1);
+      if (angleChanged) {
+        previousCrankAngle = oldAngle;
+        lastCrankChangeTime = Date.now();
+      }
+      // Don't update timestamp if angle hasn't changed - this allows status to become inactive
+    }
+  },
   _setCrankDocked: (docked) => { isCrankDocked = docked; }
 };
 
@@ -62,6 +86,12 @@ async function connectToPlaydate() {
       isPollingControls = false;
     });
     
+    // Set up cleanup on page unload
+    setupPageUnloadCleanup();
+    
+    // Set up cleanup on page unload
+    setupPageUnloadCleanup();
+    
     // Verify we can communicate by getting version info first
     // This ensures the connection is fully established and serial is open
     try {
@@ -99,6 +129,13 @@ async function connectToPlaydate() {
 }
 
 function handleControlsUpdate(state) {
+  // Debug: log state structure once to see what properties are available
+  if (!window._loggedStateStructure) {
+    console.log('State object structure:', Object.keys(state));
+    console.log('State object:', state);
+    window._loggedStateStructure = true;
+  }
+  
   // Call the main sketch's controls update handler if set
   if (onControlsUpdateCallback) {
     onControlsUpdateCallback(state);
@@ -134,12 +171,16 @@ function handleControlsUpdate(state) {
     crankValue = state.crankValue;
   }
   
-  // Check for explicit dock status first (most reliable)
+  // Check for explicit dock status - check multiple possible property names
   let explicitDocked = undefined;
   if (state.crankDocked !== undefined) {
     explicitDocked = state.crankDocked;
   } else if (state.isCrankDocked !== undefined) {
     explicitDocked = state.isCrankDocked;
+  } else if (state.docked !== undefined) {
+    explicitDocked = state.docked;
+  } else if (state.crank && state.crank.docked !== undefined) {
+    explicitDocked = state.crank.docked;
   }
   
   // Update crank angle if we have a valid value
@@ -149,49 +190,45 @@ function handleControlsUpdate(state) {
     // If we have a crank angle, it's definitely undocked
     isCrankDocked = false;
     
-    // Log every crank update to debug
-    if (oldAngle !== currentCrankAngle) {
-      console.log('Crank angle updated:', currentCrankAngle, 'State:', {
-        crank: state.crank,
-        crankAngle: state.crankAngle,
-        crankValue: state.crankValue,
-        crankDocked: state.crankDocked,
-        isCrankDocked: state.isCrankDocked,
-        stateKeys: Object.keys(state)
-      });
+    // Track activity - update timestamp ONLY when angle actually changes
+    // This allows status to become inactive after 0.2s of no movement
+    const angleChanged = (oldAngle === null || Math.abs(oldAngle - currentCrankAngle) > 0.1);
+    if (angleChanged) {
+      previousCrankAngle = oldAngle;
+      lastCrankChangeTime = Date.now();
     }
+    // Don't update timestamp if angle hasn't changed - allows status to become inactive
   } else {
     // No crank angle in this update
-    // Only update dock status if we have explicit information
+    // If we have explicit dock information, use it
     if (explicitDocked !== undefined) {
       isCrankDocked = explicitDocked;
       // Only clear angle if explicitly docked
       if (explicitDocked === true) {
         currentCrankAngle = null;
+        previousCrankAngle = null;
+        lastCrankChangeTime = 0;
+      }
+    } else {
+      // No explicit dock info and no crank value
+      // If we never had a crank angle, assume docked
+      if (currentCrankAngle === null && previousCrankAngle === null && lastCrankChangeTime === 0) {
+        // Never had a crank angle - assume docked
+        isCrankDocked = true;
+      } else if (currentCrankAngle !== null) {
+        // We had an angle before but aren't getting updates now
+        // Check if it's been a while since last update - if so, might be docked
+        const timeSinceLastUpdate = Date.now() - lastCrankChangeTime;
+        // If no updates for 1 second, infer that it's likely docked
+        if (timeSinceLastUpdate > 1000) {
+          isCrankDocked = true;
+          currentCrankAngle = null;
+          previousCrankAngle = null;
+          lastCrankChangeTime = 0;
+        }
+        // Otherwise keep current state (might just be slow updates)
       }
     }
-    // If no explicit dock info, don't change dock status - keep last known state
-    // This preserves the angle if we had one before
-    
-    // Log the full state structure to see what we're getting
-    // Log more frequently to catch the issue
-    if (Math.random() < 0.2) { // 20% chance to log
-      console.log('No crank angle in state update. Full state:', state);
-      console.log('State keys:', Object.keys(state));
-      console.log('Current stored angle:', currentCrankAngle, 'Docked:', isCrankDocked);
-      console.log('Explicit docked:', explicitDocked);
-    }
-  }
-  
-  // Debug: log dock status and angle more frequently
-  if (Math.random() < 0.1) { // 10% chance to log
-    console.log('Crank status check:', {
-      currentCrankAngle: currentCrankAngle,
-      isCrankDocked: isCrankDocked,
-      stateCrank: state.crank,
-      explicitDocked: explicitDocked,
-      hasCrankValue: crankValue !== undefined && crankValue !== null
-    });
   }
 }
 
@@ -203,6 +240,72 @@ function setControlsUpdateCallback(callback) {
 }
 
 window.playdate.setControlsUpdateCallback = setControlsUpdateCallback;
+
+// Cleanup function to properly disconnect from Playdate
+async function cleanupPlaydateConnection() {
+  if (playdateDevice) {
+    try {
+      // Stop polling controls if active
+      if (isPollingControls && playdateDevice.stopPollingControls) {
+        await playdateDevice.stopPollingControls();
+        isPollingControls = false;
+      }
+      
+      // Close serial connection if open
+      if (playdateDevice.serial && playdateDevice.serial.isOpen) {
+        if (playdateDevice.serial.close && typeof playdateDevice.serial.close === 'function') {
+          await playdateDevice.serial.close();
+        }
+      }
+      
+      console.log('Playdate connection cleaned up');
+    } catch (error) {
+      console.warn('Error during Playdate cleanup:', error);
+    } finally {
+      playdateDevice = null;
+    }
+  }
+}
+
+// Set up page unload handlers
+function setupPageUnloadCleanup() {
+  // Only set up once
+  if (window._playdateCleanupSetup) {
+    return;
+  }
+  window._playdateCleanupSetup = true;
+  
+  // Handle page unload/refresh
+  window.addEventListener('beforeunload', (event) => {
+    // Cleanup synchronously if possible
+    if (playdateDevice && isPollingControls) {
+      try {
+        if (playdateDevice.stopPollingControls) {
+          // Try to stop polling (may not complete, but we try)
+          playdateDevice.stopPollingControls().catch(() => {});
+        }
+      } catch (e) {
+        // Ignore errors during unload
+      }
+    }
+  });
+  
+  // Cleanup on page unload (fires after beforeunload)
+  window.addEventListener('unload', () => {
+    cleanupPlaydateConnection().catch(() => {
+      // Ignore errors during unload - browser is closing
+    });
+  });
+  
+  // Also handle page visibility change (tab switch, minimize, etc.)
+  document.addEventListener('visibilitychange', () => {
+    // Optionally pause/resume polling when tab is hidden
+    // For now, we'll keep it running
+  });
+}
+
+// Expose cleanup function
+window.playdate.cleanup = cleanupPlaydateConnection;
 
 // Expose connect function
 window.connectToPlaydate = connectToPlaydate;

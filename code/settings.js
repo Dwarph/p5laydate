@@ -7,7 +7,7 @@ window.settings = {
   maxForce: 0.05,
   desiredSeparation: 25.0,
   neighborDistance: 50,
-  crankInfluenceStrength: 0.08,
+  crankInfluenceStrength: 0.08, // Increased default for more noticeable influence
   boidSize: 3.0,
   // Custom brush settings (simulated charcoal/graphite effect)
   brushWeight: 1.5,
