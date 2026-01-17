@@ -21,10 +21,10 @@ let currentGradientCenterX = 0.5;
 let currentGradientCenterY = 0.5;
 
 // Button state tracking
-let aButtonPressed = false;
-let aButtonHoldStart = null;
-let aButtonHeld = false;
-const A_HOLD_TIME = 1000; // 1 second to confirm and move to stage 3
+let aButtonPressed = false; // A button for placing gradients
+let bButtonPressed = false; // B button for finishing
+let bButtonHoldStart = null;
+const B_HOLD_TIME = 1000; // 1 second to confirm and move to stage 3
 
 // Track previous crank angle for relative input (stage 2 specific)
 let stage2PreviousCrankAngle = null;
@@ -35,26 +35,39 @@ function handleStage2Controls(state) {
     return;
   }
   
-  // Check for A button (mapped to B button on Playdate)
+  // Check for A button (mapped to B button on Playdate) - places gradients
   const aPressed = (state.buttonDown && state.buttonDown.b) || 
                    (state.pressed && state.pressed.b) || false;
   
+  // Check for B button (mapped to A button on Playdate) - finishes/confirms
+  const bPressed = (state.buttonDown && state.buttonDown.a) || 
+                   (state.pressed && state.pressed.a) || false;
+  
   const now = millis();
   
-  // Handle A button press/release
+  // Handle A button press/release - only place gradient
   if (aPressed && !aButtonPressed) {
     // Just pressed - place gradient immediately
     placeGradient();
     aButtonPressed = true;
-    aButtonHoldStart = now;
-  } else if (aPressed && aButtonPressed) {
+  } else if (!aPressed && aButtonPressed) {
+    // Released
+    aButtonPressed = false;
+  }
+  
+  // Handle B button press/release - hold to finish
+  if (bPressed && !bButtonPressed) {
+    // Just pressed - start hold timer
+    bButtonPressed = true;
+    bButtonHoldStart = now;
+  } else if (bPressed && bButtonPressed) {
     // Still holding - check if held long enough to confirm and move to stage 3
-    const holdDuration = now - aButtonHoldStart;
+    const holdDuration = now - bButtonHoldStart;
     
-    if (holdDuration >= A_HOLD_TIME) {
+    if (holdDuration >= B_HOLD_TIME) {
       // Confirmed! Save final background and move to stage 3
-      aButtonHeld = false;
-      aButtonPressed = false;
+      bButtonPressed = false;
+      bButtonHoldStart = null;
       console.log('Background confirmed! Moving to stage 3 - spawning boids');
       // Create final gradient buffer with all placed gradients
       window.createGradientBuffer();
@@ -66,10 +79,10 @@ function handleStage2Controls(state) {
         console.log('Stage transitioned to 3, currentStage:', window.currentStage);
       }
     }
-  } else if (!aPressed && aButtonPressed) {
-    // Released
-    aButtonPressed = false;
-    aButtonHoldStart = null;
+  } else if (!bPressed && bButtonPressed) {
+    // Released before holding long enough
+    bButtonPressed = false;
+    bButtonHoldStart = null;
   }
   
   // D-pad controls for current gradient center position
@@ -194,13 +207,13 @@ function drawStage2Instructions() {
     stageContent.innerHTML = `
       <div>Stage 2: Place Gradients</div>
       <div class="instruction">Current: ${currentColorName} | Placed: ${placedGradients.length}</div>
-      <div class="instruction">Crank: Size | D-pad: Position | Press A: Place | Hold A (1s): Confirm</div>
+      <div class="instruction">Crank: Size | D-pad: Position | Press A: Place | Hold B (1s): Finish</div>
     `;
     stageOverlay.style.display = 'block';
     
-    // Update progress bar for confirmation hold
-    if (aButtonPressed && aButtonHoldStart) {
-      const holdProgress = (millis() - aButtonHoldStart) / A_HOLD_TIME;
+    // Update progress bar for B button confirmation hold
+    if (bButtonPressed && bButtonHoldStart) {
+      const holdProgress = (millis() - bButtonHoldStart) / B_HOLD_TIME;
       progressFill.style.width = (holdProgress * 100) + '%';
       progressOverlay.style.display = 'block';
     } else {
@@ -218,7 +231,8 @@ function initializeStage2() {
   currentGradientCenterX = 0.5;
   currentGradientCenterY = 0.5;
   aButtonPressed = false;
-  aButtonHoldStart = null;
+  bButtonPressed = false;
+  bButtonHoldStart = null;
   stage2PreviousCrankAngle = null;
   
   // Reset gradient count tracking

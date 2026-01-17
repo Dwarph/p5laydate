@@ -10,8 +10,13 @@ const SPAWN_MOVE_SPEED = 0.01; // Movement speed for D-pad
 // B button state for attracting/pushing boids
 let bButtonHeld = false;
 let bButtonWasHeld = false;
+let bButtonReleasedThisStage = false; // Track if B has been released since entering stage 3
 const ATTRACT_FORCE_STRENGTH = 0.15; // Force strength when attracting
 const PUSH_FORCE_STRENGTH = 2.0; // Force strength when pushing away
+
+// A button state for continuous spawning
+let lastSpawnTime = 0;
+const SPAWN_INTERVAL = 100; // Milliseconds between spawns when A is held
 
 function handleStage3Controls(state) {
   // D-pad controls for spawn position
@@ -38,15 +43,17 @@ function handleStage3Controls(state) {
     spawnX = min(1, spawnX + SPAWN_MOVE_SPEED);
   }
   
-  // Check for A button press to spawn boids (A is mapped to B button on Playdate)
+  // Check for A button - continuously spawn boids while held (A is mapped to B button on Playdate)
   const aPressed = (state.buttonDown && state.buttonDown.b) || 
                    (state.pressed && state.pressed.b) || false;
-  const aWasPressed = stage3ButtonStates['a'] || false;
   
-  // Detect new A button press
-  if (aPressed && !aWasPressed && window.flock) {
-    console.log('A button pressed in stage 3 - spawning boid');
-    window.createBoidAtPosition(spawnX, spawnY);
+  // Continuously spawn boids while A is held
+  if (aPressed && window.flock) {
+    const now = millis();
+    if (now - lastSpawnTime >= SPAWN_INTERVAL) {
+      window.createBoidAtPosition(spawnX, spawnY);
+      lastSpawnTime = now;
+    }
   }
   
   // Update previous state
@@ -56,12 +63,26 @@ function handleStage3Controls(state) {
   const bPressed = (state.buttonDown && state.buttonDown.a) || 
                    (state.pressed && state.pressed.a) || false;
   bButtonWasHeld = bButtonHeld;
-  bButtonHeld = bPressed;
+  
+  // If B is not pressed, mark that we've seen a release (allows subsequent presses to work)
+  if (!bPressed) {
+    bButtonReleasedThisStage = true;
+    bButtonHeld = false;
+  } else if (bPressed && !bButtonWasHeld) {
+    // Button was just pressed - only activate if we've seen a release
+    if (bButtonReleasedThisStage) {
+      bButtonHeld = true;
+      console.log('B button pressed - attracting boids');
+    } else {
+      // Ignore this press - was held when entering stage 3
+      bButtonHeld = false;
+    }
+  } else if (bPressed && bButtonWasHeld) {
+    // Button is still being held - keep it active if we've seen a release
+    bButtonHeld = bButtonReleasedThisStage;
+  }
   
   // Debug: log B button state
-  if (bButtonHeld && !bButtonWasHeld) {
-    console.log('B button pressed - attracting boids');
-  }
   if (!bButtonHeld && bButtonWasHeld) {
     console.log('B button released - pushing boids away');
   }
@@ -244,6 +265,8 @@ function initializeStage3() {
   stage3ButtonStates = {};
   bButtonHeld = false;
   bButtonWasHeld = false;
+  bButtonReleasedThisStage = false; // Reset flag - wait for button to be released first
+  lastSpawnTime = 0;
   // Reset force states
   window.stage3AttractActive = false;
   window.stage3PushActive = false;

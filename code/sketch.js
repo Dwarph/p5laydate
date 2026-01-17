@@ -450,10 +450,6 @@ function draw() {
       if (window.stage3 && window.stage3.drawSpawnIndicator) {
         window.stage3.drawSpawnIndicator();
       }
-      // Draw crank debug info
-      if (window.stage3 && window.stage3.drawCrankDebug) {
-        window.stage3.drawCrankDebug();
-      }
     } else {
       // Debug: log if stage 3 but no flock
       if (frameCount % 60 === 0) { // Log once per second
